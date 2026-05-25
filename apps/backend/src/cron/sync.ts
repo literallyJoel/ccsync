@@ -265,7 +265,7 @@ async function filterTransactions(
   // Parse existing entries and prune anything older than our query window —
   // those transaction IDs will never appear in TrueLayer responses again
   const allEntries: ProcessedEntry[] = raw ? JSON.parse(raw) : [];
-  const liveEntries = allEntries.filter((e) => e.ts >= fromMs);
+  const liveEntries = allEntries.filter((e) => e.timestamp >= fromMs);
 
   const processedIds = new Set(liveEntries.map((e) => e.id));
   const newTransactions = transactions.filter(
