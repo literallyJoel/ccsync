@@ -1,0 +1,22 @@
+{
+    "name": "@ccsync/backend",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "bun --watch src/entrypoint.ts",
+        "build": "bun build src/entrypoint.ts --target bun --outdir dist",
+        "lint": "tsc --noEmit",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@clerk/backend": "^3.4.12",
+        "@literallyjoel/router": "^1.1.1",
+        "@t3-oss/env-core": "^0.13.11",
+        "axios": "^1.16.1",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.3.14"
+    }
+}
