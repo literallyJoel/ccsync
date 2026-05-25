@@ -9,7 +9,7 @@ export type ClientConstructorProps = {
 
 export type Account = {
     update_timestamp: string;
-    account_idd: string;
+    account_id: string;
     account_type: string;
     display_name: string;
     currency: string;

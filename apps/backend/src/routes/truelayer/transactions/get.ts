@@ -27,12 +27,12 @@ const TrueLayerTransactionsController = createController(
     try {
       const func =
         status === "pending"
-          ? trueLayerClient.getPendingTransactions
+          ? trueLayerClient.getPendingTransactions.bind(trueLayerClient)
           : status === "settled"
-            ? trueLayerClient.getSettledTransactions
-            : trueLayerClient.getAllTransactions;
+            ? trueLayerClient.getSettledTransactions.bind(trueLayerClient)
+            : trueLayerClient.getAllTransactions.bind(trueLayerClient);
 
-      const transactions = func(accountId, from, to);
+      const transactions = await func(accountId, from, to);
 
       return Response.json(transactions);
     } catch (error) {

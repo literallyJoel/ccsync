@@ -16,7 +16,7 @@ const MonzoCallbackController = createController(
     const { token, refreshToken } = await monzoClient.getToken(code);
 
     if (!token) {
-      return Response.redirect("/monzo/auth/error?reason=mising_token");
+      return Response.redirect("/monzo/auth/error?reason=missing_token");
     }
 
     if (!refreshToken) {

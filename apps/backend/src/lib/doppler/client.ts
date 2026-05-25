@@ -9,7 +9,7 @@ export class DopplerClient {
 
   constructor(token?: string, project?: string, config?: string) {
     this.apiClient = axios.create({
-      baseURL: "api.doppler.com/v3/configs/config",
+      baseURL: "https://api.doppler.com/v3/configs/config",
     });
 
     const _token = token || env.DOPPLER_TOKEN;
@@ -26,7 +26,7 @@ export class DopplerClient {
   async get(key: string): Promise<Secret | undefined> {
     const response = await this.apiClient.get("/secret", {
       params: {
-        project: "ccsync",
+        project: this.project,
         config: this.config,
         name: key,
       },

@@ -20,13 +20,11 @@ const TrueLayerCallbackController = createController(
     }
 
     if (!refreshToken) {
-      return Response.redirect(
-        "/truelayer/auth/error?reason=missing_refresh",
-      );
+      return Response.redirect("/truelayer/auth/error?reason=missing_refresh");
     }
 
     dopplerClient.set({
-      key: `${ctx.user.id}-truelayer_refresh`,
+      key: TrueLayerClient.getRefreshTokenKey(ctx.user.id),
       value: refreshToken,
     });
 

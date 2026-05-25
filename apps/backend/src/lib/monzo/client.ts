@@ -106,7 +106,7 @@ export class MonzoClient extends APIClient {
       const response = await this.apiClient.put<Pot>(
         `/pots/${potId}/withdraw`,
         new URLSearchParams({
-          destionation_account_id: accountId,
+          destination_account_id: accountId,
           amount: String(amount),
           dedupe_id: dedupeId,
         }),

@@ -7,59 +7,63 @@ import { TrueLayerClient } from "../lib/truelayer/client";
 import { MonzoClient } from "../lib/monzo/client";
 import { Transaction } from "../lib/truelayer/types";
 
+type ProcessedEntry = {
+  id: string;
+  timestamp: number;
+};
+
+type FailedEntry = {
+  transaction_id: string;
+  amount: number;
+  monzoAccountId: string;
+  monzoPotId: string;
+  retries: number;
+  lastAttempt: number;
+};
+
+const MAX_RETRIES = 5;
+
 async function run(userId: string) {
   const user = await getUser(userId);
-
   if (!user) return 1;
 
-  const lastSync = await redis.get(`${userId}_last_sync`);
+  const email = user.primaryEmailAddress?.emailAddress;
+  const name = user.firstName;
+
+  // The date the user linked their account — permanent lower bound
+  const accountLinkDate = await redis.get(`${userId}_link_date`);
+  if (!accountLinkDate) {
+    handleErr({ err: "No account link date found", name, userId, email });
+    return 1;
+  }
+
   const accountInfo = await redis.get(`${userId}_ccinf`);
-
   if (!accountInfo) {
-    handleErr({
-      err: "Failed to fetch cc account info",
-      lastSync,
-      name: user.firstName,
-      userId,
-      email: user.primaryEmailAddress?.emailAddress,
-    });
-
+    handleErr({ err: "Failed to fetch cc account info", name, userId, email });
     return 1;
   }
 
   const monzoInfo = await redis.get(`${userId}_monzoid`);
-
   if (!monzoInfo) {
-    handleErr({
-      err: "Failed to fetch Monzo account id",
-      lastSync,
-      name: user.firstName,
-      userId,
-      email: user.primaryEmailAddress?.emailAddress,
-    });
-
+    handleErr({ err: "Failed to fetch Monzo account id", name, userId, email });
     return 1;
   }
 
-  const [monzoAccountId, monzoPotId] = monzoInfo?.split(";");
-
+  const [monzoAccountId, monzoPotId] = monzoInfo.split(";");
   const [accountId, accountName] = accountInfo.split(";");
 
   const { err: monzoError, refreshToken: monzoToken } = await getRefreshToken(
     userId,
     "monzo",
   );
-
   if (monzoError || !monzoToken) {
     handleErr({
-      err: `Failed to fetch Monzo Token${monzoError ? ` - ${monzoError}` : ""}`,
-      lastSync,
-      name: user.firstName,
+      err: `Failed to fetch Monzo token${monzoError ? ` - ${monzoError}` : ""}`,
+      name,
       userId,
-      email: user.primaryEmailAddress?.emailAddress,
-      ccAccount: accountName || undefined,
+      email,
+      ccAccount: accountName,
     });
-
     return 1;
   }
 
@@ -67,170 +71,257 @@ async function run(userId: string) {
     userId,
     "truelayer",
   );
-
   if (tLError || !tLToken) {
     handleErr({
       err: `Failed to fetch TrueLayer token${tLError ? ` - ${tLError}` : ""}`,
-      lastSync,
-      name: user.firstName,
+      name,
       userId,
-      email: user.primaryEmailAddress?.emailAddress,
-      ccAccount: accountName || undefined,
+      email,
+      ccAccount: accountName,
     });
-
     return 1;
   }
+
+  // Fetch transactions from the later of: account link date, or last sync date.
+  // This keeps the window tight on steady-state runs while still catching up
+  // on the first run or after a gap.
+  const lastSyncFrom = await redis.get(`${userId}_last_sync_from`);
+  const from =
+    lastSyncFrom && lastSyncFrom > accountLinkDate
+      ? lastSyncFrom
+      : accountLinkDate;
+  const to = new Date().toISOString().split("T")[0]!;
 
   let transactions: Transaction[];
   try {
-    transactions = await getTransactions(tLToken, accountId);
+    transactions = await getTransactions(tLToken, accountId, from, to);
   } catch (err) {
     handleErr({
       err: String(err),
-      lastSync,
-      name: user.firstName,
+      name,
       userId,
-      email: user.primaryEmailAddress?.emailAddress,
-      ccAccount: accountName || undefined,
+      email,
+      ccAccount: accountName,
     });
-
     return 1;
   }
 
-  const { processedTransactions, filteredTransactions } =
-    await filterTransactions(transactions, userId);
-
-  if (!filterTransactions.length) return 0;
-
-  try {
-    handleMonzoSync(
-      monzoToken,
-      filteredTransactions,
-      monzoAccountId,
-      monzoPotId,
-    );
-  } catch (err) {
-    handleErr({
-      err: String(err),
-      lastSync,
-      name: user.firstName,
-      userId,
-      email: user.primaryEmailAddress?.emailAddress,
-      ccAccount: accountName || undefined,
-    });
-
-    return 1;
-  }
-
-  const filteredIds = filteredTransactions.map(
-    (transaction) => transaction.transaction_id,
+  // Filter to only unprocessed transactions, and prune the cache at the same time
+  const { processedEntries, newTransactions } = await filterTransactions(
+    transactions,
+    userId,
+    from,
   );
 
-  const allIds = [...processedTransactions, filteredIds];
+  // Retry previously failed transactions before processing new ones
+  const failedEntries = await getFailedEntries(userId);
+  const stillFailing: FailedEntry[] = [];
 
-  redis.set(`${userId}_processed`, allIds.join(";"));
+  for (const entry of failedEntries) {
+    if (entry.retries >= MAX_RETRIES) {
+      // Give up — notify and drop
+      handleErr({
+        err: `Giving up on transaction ${entry.transaction_id} after ${entry.retries} retries`,
+        name,
+        userId,
+        email,
+        ccAccount: accountName,
+      });
+      continue;
+    }
+
+    const success = await attemptDeposit(monzoToken, {
+      accountId: entry.monzoAccountId,
+      potId: entry.monzoPotId,
+      amount: entry.amount,
+      dedupeId: entry.transaction_id,
+    });
+
+    if (success) {
+      processedEntries.push({
+        id: entry.transaction_id,
+        timestamp: entry.lastAttempt,
+      });
+    } else {
+      stillFailing.push({
+        ...entry,
+        retries: entry.retries + 1,
+        lastAttempt: Date.now(),
+      });
+    }
+  }
+
+  // Process new transactions
+  const newlyFailed: FailedEntry[] = [];
+
+  for (const transaction of newTransactions) {
+    if (transaction.transaction_type === "CREDIT") {
+      // Refund — withdraw from pot
+      const success = await attemptWithdraw(monzoToken, {
+        accountId: monzoAccountId!,
+        potId: monzoPotId!,
+        amount: Math.abs(transaction.amount),
+        dedupeId: transaction.transaction_id,
+      });
+
+      if (success) {
+        processedEntries.push({
+          id: transaction.transaction_id,
+          timestamp: new Date(transaction.timestamp).getTime(),
+        });
+      }
+      // Withdrawals that fail are not retried to avoid over-withdrawing;
+      // they'll surface naturally on the next run since the transaction
+      // won't be in the processed set
+    } else {
+      // Debit — deposit to pot
+      const success = await attemptDeposit(monzoToken, {
+        accountId: monzoAccountId!,
+        potId: monzoPotId!,
+        amount: Math.abs(transaction.amount),
+        dedupeId: transaction.transaction_id,
+      });
+
+      if (success) {
+        processedEntries.push({
+          id: transaction.transaction_id,
+          timestamp: new Date(transaction.timestamp).getTime(),
+        });
+      } else {
+        newlyFailed.push({
+          transaction_id: transaction.transaction_id,
+          amount: Math.abs(transaction.amount),
+          monzoAccountId: monzoAccountId!,
+          monzoPotId: monzoPotId!,
+          retries: 1,
+          lastAttempt: Date.now(),
+        });
+      }
+    }
+  }
+
+  // Persist updated state
+  await redis.set(`${userId}_processed`, JSON.stringify(processedEntries));
+  await redis.set(
+    `${userId}_failed`,
+    JSON.stringify([...stillFailing, ...newlyFailed]),
+  );
+  await redis.set(`${userId}_last_sync_from`, to);
 
   return 0;
 }
 
-async function handleMonzoSync(
+// Returns true on success
+async function attemptDeposit(
   refreshToken: string,
-  transactions: Transaction[],
-  accountId: string,
-  potId: string,
-) {
-  const monzoClient = new MonzoClient({ refreshToken });
-
-  for (const transaction of transactions) {
-    monzoClient.depositToPot({
-      accountId,
-      potId,
-      amount: transaction.amount,
-      dedupeId: transaction.transaction_id,
-    });
+  params: {
+    accountId: string;
+    potId: string;
+    amount: number;
+    dedupeId: string;
+  },
+): Promise<boolean> {
+  try {
+    const monzoClient = new MonzoClient({ refreshToken });
+    await monzoClient.depositToPot(params);
+    return true;
+  } catch (err) {
+    console.error("Deposit failed", err);
+    return false;
   }
 }
 
-async function filterTransactions(transactions: Transaction[], userId: string) {
-  const processedTransactionsStr = await redis.get(`${userId}_processed`);
-  if (!processedTransactionsStr)
-    return { filteredTransactions: transactions, processedTransactions: [] };
-
-  const processedTransactions = processedTransactionsStr.split(";");
-
-  const filteredTransactions = transactions.filter(
-    (transaction) =>
-      !processedTransactions.includes(transaction.transaction_id),
-  );
-
-  return { processedTransactions, filteredTransactions };
+// Returns true on success
+async function attemptWithdraw(
+  refreshToken: string,
+  params: {
+    accountId: string;
+    potId: string;
+    amount: number;
+    dedupeId: string;
+  },
+): Promise<boolean> {
+  try {
+    const monzoClient = new MonzoClient({ refreshToken });
+    await monzoClient.withdrawFromPot(params);
+    return true;
+  } catch (err) {
+    console.error("Withdrawal failed", err);
+    return false;
+  }
 }
 
-async function getTransactions(refreshToken: string, accountId: string) {
+async function filterTransactions(
+  transactions: Transaction[],
+  userId: string,
+  from: string,
+): Promise<{
+  processedEntries: ProcessedEntry[];
+  newTransactions: Transaction[];
+}> {
+  const raw = await redis.get(`${userId}_processed`);
+  const fromMs = new Date(from).getTime();
+
+  // Parse existing entries and prune anything older than our query window —
+  // those transaction IDs will never appear in TrueLayer responses again
+  const allEntries: ProcessedEntry[] = raw ? JSON.parse(raw) : [];
+  const liveEntries = allEntries.filter((e) => e.ts >= fromMs);
+
+  const processedIds = new Set(liveEntries.map((e) => e.id));
+  const newTransactions = transactions.filter(
+    (t) => !processedIds.has(t.transaction_id),
+  );
+
+  return { processedEntries: liveEntries, newTransactions };
+}
+
+async function getFailedEntries(userId: string): Promise<FailedEntry[]> {
+  const raw = await redis.get(`${userId}_failed`);
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function getTransactions(
+  refreshToken: string,
+  accountId: string,
+  from: string,
+  to: string,
+) {
   const trueLayerClient = new TrueLayerClient({ refreshToken });
-
-  const date = new Date();
-  const to = date.toISOString().split("T")[0];
-  date.setDate(date.getDate() - 90);
-  const from = date.toISOString().split("T")[0];
-
-  const transactions = await trueLayerClient.getAllTransactions(
-    accountId,
-    from,
-    to,
-  );
-  return transactions;
+  return trueLayerClient.getAllTransactions(accountId, from, to);
 }
+
 async function getUser(userId: string) {
   const clerkClient = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-
-  let user;
-
   try {
-    user = await clerkClient.users.getUser(userId);
-    if (!user) throw new Error(`Failed to fetch user`);
+    const user = await clerkClient.users.getUser(userId);
+    if (!user) throw new Error("Failed to fetch user");
+    return user;
   } catch (err) {
     console.error(err, { userId });
     return undefined;
   }
-
-  return user;
 }
 
 function handleErr({
   err,
-  fallback,
-  lastSync,
   name,
   ccAccount,
   email,
   userId,
 }: {
   err?: string;
-  fallback?: string;
-  lastSync?: string | null;
   name?: string | null;
-  ccAccount?: string | undefined;
+  ccAccount?: string;
   email?: string;
   userId: string;
 }) {
-  console.error(err ?? fallback, { userId });
-
-  const variables: Record<string, string> = {};
-
-  if (lastSync) {
-    variables.last_sync = lastSync;
-  }
-
-  if (name) {
-    variables.name = name;
-  }
-
-  if (ccAccount) {
-    variables.cc_account = ccAccount;
-  }
+  console.error(err, { userId });
 
   if (email) {
+    const variables: Record<string, string> = {};
+    if (name) variables.name = name;
+    if (ccAccount) variables.cc_account = ccAccount;
+
     sendEmail({
       to: email,
       template: {
