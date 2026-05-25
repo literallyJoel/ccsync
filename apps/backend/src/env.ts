@@ -20,6 +20,8 @@ export const env = createEnv({
     DOPPLER_PROJECT: z.string(),
     DOPPLER_CONFIG: z.string(),
 
+    RESEND_API_KEY: z.string(),
+  
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   },
   runtimeEnv: bunEnv,
