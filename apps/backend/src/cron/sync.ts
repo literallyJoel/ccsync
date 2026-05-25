@@ -97,7 +97,8 @@ async function run(userId: string) {
     return 1;
   }
 
-  const filteredTransactions = await filterTransactions(transactions, userId);
+  const { processedTransactions, filteredTransactions } =
+    await filterTransactions(transactions, userId);
 
   if (!filterTransactions.length) return 0;
 
@@ -121,6 +122,14 @@ async function run(userId: string) {
     return 1;
   }
 
+  const filteredIds = filteredTransactions.map(
+    (transaction) => transaction.transaction_id,
+  );
+
+  const allIds = [...processedTransactions, filteredIds];
+
+  redis.set(`${userId}_processed`, allIds.join(";"));
+
   return 0;
 }
 
@@ -143,15 +152,18 @@ async function handleMonzoSync(
 }
 
 async function filterTransactions(transactions: Transaction[], userId: string) {
-  const processedTransactions = await redis.get(`${userId}_processed`);
-  if (!processedTransactions) return transactions;
+  const processedTransactionsStr = await redis.get(`${userId}_processed`);
+  if (!processedTransactionsStr)
+    return { filteredTransactions: transactions, processedTransactions: [] };
+
+  const processedTransactions = processedTransactionsStr.split(";");
 
   const filteredTransactions = transactions.filter(
     (transaction) =>
       !processedTransactions.includes(transaction.transaction_id),
   );
 
-  return filteredTransactions;
+  return { processedTransactions, filteredTransactions };
 }
 
 async function getTransactions(refreshToken: string, accountId: string) {
