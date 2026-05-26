@@ -14,12 +14,18 @@ export type TrueLayerConnectedResponse = {
 export type MonzoAccount = {
   id: string;
   description: string;
+  assets: {
+    image_url: string;
+  };
+  is_flex: boolean;
+  owner_type: string;
 };
 
 export type MonzoPot = {
   id: string;
   name: string;
   style: string;
+  cover_image_url: string;
 };
 
 export type TrueLayerAccount = {
