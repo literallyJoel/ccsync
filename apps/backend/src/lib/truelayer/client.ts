@@ -7,7 +7,7 @@ import type {
 } from "./types";
 import { APIClient } from "../api/client";
 import { env } from "../../env";
-import { ApiError } from "../api/error";
+import { DopplerClient } from "../doppler/client";
 
 const AUTH_URLS = {
   production: "https://auth.truelayer.com",
@@ -23,7 +23,7 @@ export class TrueLayerClient extends APIClient {
   protected override readonly tokenEndpoint: string;
   private readonly baseAuthUrl: string;
 
-  constructor(props?: ClientConstructorProps) {
+  constructor(props: ClientConstructorProps) {
     const environment = props?.sandbox ? "sandbox" : "production";
     const authBaseUrl = AUTH_URLS[environment];
 
@@ -38,6 +38,7 @@ export class TrueLayerClient extends APIClient {
       token: props?.token,
       refreshToken: props?.refreshToken,
       apiBaseUrl: API_URLS[environment],
+      userId: props.userId,
     });
 
     this.baseAuthUrl = authBaseUrl;
@@ -134,5 +135,16 @@ export class TrueLayerClient extends APIClient {
 
   static getRefreshTokenKey(userId: string) {
     return `${userId}-truelayer_refresh`;
+  }
+
+  protected async onRefreshTokenRotated(
+    _newRefreshToken: string,
+  ): Promise<void> {
+    const dopplerClient = new DopplerClient();
+
+    dopplerClient.set({
+      key: TrueLayerClient.getRefreshTokenKey(this.userId),
+      value: _newRefreshToken,
+    });
   }
 }

@@ -10,8 +10,13 @@ export abstract class APIClient {
   protected readonly redirectUri: string;
   protected token?: string;
   protected refreshToken?: string;
+  readonly userId: string;
 
   protected abstract readonly tokenEndpoint: string;
+
+  protected abstract onRefreshTokenRotated(
+    _newRefreshToken: string,
+  ): Promise<void>;
 
   constructor({
     clientId,
@@ -20,12 +25,14 @@ export abstract class APIClient {
     token,
     refreshToken,
     apiBaseUrl,
+    userId,
   }: BaseClientConstructorProps) {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
     this.redirectUri = redirectUri;
     this.token = token;
     this.refreshToken = refreshToken;
+    this.userId = userId;
 
     this.apiClient = axios.create({ baseURL: apiBaseUrl });
     this.apiClient.interceptors.request.use((config) => {
@@ -92,7 +99,9 @@ export abstract class APIClient {
   }
 
   protected async refreshAccessToken() {
-    if (this.refreshPromise) return;
+    // Return the existing in-flight promise so concurrent callers all wait
+    // for the same refresh rather than bailing out or firing duplicate requests.
+    if (this.refreshPromise) return this.refreshPromise;
 
     if (!this.refreshToken) {
       throw this.createError(
@@ -108,9 +117,15 @@ export abstract class APIClient {
       redirect_uri: this.redirectUri,
       refresh_token: this.refreshToken,
     })
-      .then((data) => {
-        ((this.token = data.access_token),
-          (this.refreshToken = data.refresh_token));
+      .then(async (data) => {
+        this.token = data.access_token;
+        this.refreshToken = data.refresh_token;
+
+        // Persist the rotated refresh token so it survives process restarts.
+        // Both Monzo and TrueLayer rotate the refresh token on every use, so
+        // failing to write it back would cause auth failures on the next run.
+        await this.onRefreshTokenRotated(data.refresh_token);
+
         return data;
       })
       .finally(() => {
@@ -119,6 +134,8 @@ export abstract class APIClient {
       .catch((e) => {
         throw this.createError(e, "Failed to get refresh token", 401);
       });
+
+    return this.refreshPromise;
   }
 
   protected requiresUserAuth() {

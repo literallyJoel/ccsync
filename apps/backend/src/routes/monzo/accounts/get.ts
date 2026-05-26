@@ -20,6 +20,7 @@ const MonzoAccountsController = createController(
 
     const monzoClient = new MonzoClient({
       refreshToken,
+      userId: ctx.user.id,
     });
 
     try {

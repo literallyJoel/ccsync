@@ -8,6 +8,7 @@ import type {
 
 import { APIClient } from "../api/client";
 import { env } from "../../env";
+import { DopplerClient } from "../doppler/client";
 
 const API_URL = "https://api.monzo.com";
 const AUTH_URL = "https://auth.monzo.com";
@@ -17,7 +18,7 @@ export class MonzoClient extends APIClient {
   private readonly state_token: string;
   readonly connectAccountUrl: string;
 
-  constructor(props?: ClientConstructorProps) {
+  constructor(props: ClientConstructorProps) {
     let _clientId = props?.clientId || env.MONZO_CLIENT_ID;
     let _clientSecret = props?.clientSecret || env.MONZO_CLIENT_SECRET;
     let _redirectUri = props?.redirectUri || env.MONZO_REDIRECT_URI;
@@ -26,9 +27,10 @@ export class MonzoClient extends APIClient {
       clientId: _clientId,
       clientSecret: _clientSecret,
       redirectUri: _redirectUri,
-      token: props?.token,
-      refreshToken: props?.refreshToken,
+      token: props.token,
+      refreshToken: props.refreshToken,
       apiBaseUrl: API_URL,
+      userId: props?.userId,
     });
 
     this.state_token = crypto.randomUUID();
@@ -121,5 +123,16 @@ export class MonzoClient extends APIClient {
 
   static getRefreshTokenKey(userId: string) {
     return `${userId}-monzo_refresh`;
+  }
+
+  protected async onRefreshTokenRotated(
+    _newRefreshToken: string,
+  ): Promise<void> {
+    const dopplerClient = new DopplerClient();
+
+    dopplerClient.set({
+      key: MonzoClient.getRefreshTokenKey(this.userId),
+      value: _newRefreshToken,
+    });
   }
 }

@@ -5,6 +5,7 @@ export type BaseClientConstructorProps = {
     apiBaseUrl: string;
     token?: string;
     refreshToken?: string;
+    userId: string;
 };
 
 export type GetTokenResponse = {

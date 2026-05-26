@@ -17,7 +17,10 @@ const TrueLayerAccountsController = createController(
       );
     }
 
-    const trueLayerClient = new TrueLayerClient({ refreshToken });
+    const trueLayerClient = new TrueLayerClient({
+      refreshToken,
+      userId: ctx.user.id,
+    });
 
     try {
       const accounts = await trueLayerClient.getAccounts();

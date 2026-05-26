@@ -4,6 +4,7 @@ export type ClientConstructorProps = {
     clientSecret?: string;
     token?: string;
     refreshToken?: string;
+    userId: string;
 }
 
 export type Account = {

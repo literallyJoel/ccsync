@@ -10,7 +10,10 @@ const MonzoCallbackController = createController(
       return Response.redirect("/monzo/auth/error?reason=missing_code");
     }
 
-    const monzoClient = new MonzoClient();
+    const monzoClient = new MonzoClient({
+      userId: ctx.user.id,
+    });
+  
     const dopplerClient = new DopplerClient();
 
     const { token, refreshToken } = await monzoClient.getToken(code);

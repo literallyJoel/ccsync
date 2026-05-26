@@ -94,7 +94,7 @@ async function run(userId: string) {
 
   let transactions: Transaction[];
   try {
-    transactions = await getTransactions(tLToken, accountId, from, to);
+    transactions = await getTransactions(tLToken, accountId, from, to, userId);
   } catch (err) {
     handleErr({
       err: String(err),
@@ -130,12 +130,16 @@ async function run(userId: string) {
       continue;
     }
 
-    const success = await attemptDeposit(monzoToken, {
-      accountId: entry.monzoAccountId,
-      potId: entry.monzoPotId,
-      amount: entry.amount,
-      dedupeId: entry.transaction_id,
-    });
+    const success = await attemptDeposit(
+      monzoToken,
+      {
+        accountId: entry.monzoAccountId,
+        potId: entry.monzoPotId,
+        amount: entry.amount,
+        dedupeId: entry.transaction_id,
+      },
+      userId,
+    );
 
     if (success) {
       processedEntries.push({
@@ -157,12 +161,16 @@ async function run(userId: string) {
   for (const transaction of newTransactions) {
     if (transaction.transaction_type === "CREDIT") {
       // Refund — withdraw from pot
-      const success = await attemptWithdraw(monzoToken, {
-        accountId: monzoAccountId!,
-        potId: monzoPotId!,
-        amount: Math.abs(transaction.amount),
-        dedupeId: transaction.transaction_id,
-      });
+      const success = await attemptWithdraw(
+        monzoToken,
+        {
+          accountId: monzoAccountId!,
+          potId: monzoPotId!,
+          amount: Math.abs(transaction.amount),
+          dedupeId: transaction.transaction_id,
+        },
+        userId,
+      );
 
       if (success) {
         processedEntries.push({
@@ -175,12 +183,16 @@ async function run(userId: string) {
       // won't be in the processed set
     } else {
       // Debit — deposit to pot
-      const success = await attemptDeposit(monzoToken, {
-        accountId: monzoAccountId!,
-        potId: monzoPotId!,
-        amount: Math.abs(transaction.amount),
-        dedupeId: transaction.transaction_id,
-      });
+      const success = await attemptDeposit(
+        monzoToken,
+        {
+          accountId: monzoAccountId!,
+          potId: monzoPotId!,
+          amount: Math.abs(transaction.amount),
+          dedupeId: transaction.transaction_id,
+        },
+        userId,
+      );
 
       if (success) {
         processedEntries.push({
@@ -220,9 +232,10 @@ async function attemptDeposit(
     amount: number;
     dedupeId: string;
   },
+  userId: string,
 ): Promise<boolean> {
   try {
-    const monzoClient = new MonzoClient({ refreshToken });
+    const monzoClient = new MonzoClient({ refreshToken, userId });
     await monzoClient.depositToPot(params);
     return true;
   } catch (err) {
@@ -240,9 +253,10 @@ async function attemptWithdraw(
     amount: number;
     dedupeId: string;
   },
+  userId: string,
 ): Promise<boolean> {
   try {
-    const monzoClient = new MonzoClient({ refreshToken });
+    const monzoClient = new MonzoClient({ refreshToken, userId });
     await monzoClient.withdrawFromPot(params);
     return true;
   } catch (err) {
@@ -285,8 +299,9 @@ async function getTransactions(
   accountId: string,
   from: string,
   to: string,
+  userId: string,
 ) {
-  const trueLayerClient = new TrueLayerClient({ refreshToken });
+  const trueLayerClient = new TrueLayerClient({ refreshToken, userId });
   return trueLayerClient.getAllTransactions(accountId, from, to);
 }
 

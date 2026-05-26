@@ -10,7 +10,10 @@ const TrueLayerCallbackController = createController(
       return Response.redirect("/truelayer/auth/error?reason=missing_code");
     }
 
-    const trueLayerClient = new TrueLayerClient();
+    const trueLayerClient = new TrueLayerClient({
+      userId: ctx.user.id,
+    });
+  
     const dopplerClient = new DopplerClient();
 
     const { token, refreshToken } = await trueLayerClient.getToken(code);
