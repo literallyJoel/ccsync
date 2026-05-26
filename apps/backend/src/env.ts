@@ -21,10 +21,13 @@ export const env = createEnv({
     DOPPLER_CONFIG: z.string(),
 
     RESEND_API_KEY: z.string(),
-  
-    NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+
+    NODE_ENV: z
+      .enum(["development", "production", "test"])
+      .default("development"),
+
+    REDIS_URL: z.string(),
   },
   runtimeEnv: bunEnv,
   emptyStringAsUndefined: true,
 });
-
