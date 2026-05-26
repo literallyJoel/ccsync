@@ -1,17 +1,10 @@
 import { serve } from "bun";
-import { join } from "path";
 import { getRoutes } from "./lib/router";
 import { env } from "./env";
 
-let index;
-
 const routes = await getRoutes();
 
-if (env.NODE_ENV === "development") {
-  index = await import("../../web/index.html");
-} else {
-  index = await import("./web/index.html");
-}
+const index = await import("../web/index.html");
 
 const server = serve({
   hostname: "0.0.0.0",
@@ -24,6 +17,7 @@ const server = serve({
     hmr: true,
     console: true,
   },
+  idleTimeout: 120
 });
 
 console.info(`🚀 Server running at http://${server.hostname}:${server.port}`);

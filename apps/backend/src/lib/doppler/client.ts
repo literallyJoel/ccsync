@@ -4,7 +4,7 @@ import { Secret } from "./types";
 
 export class DopplerClient {
   protected readonly apiClient;
-  protected readonly config: string;
+  protected readonly doplerConfig: string;
   protected readonly project: string;
 
   constructor(token?: string, project?: string, config?: string) {
@@ -14,24 +14,24 @@ export class DopplerClient {
 
     const _token = token || env.DOPPLER_TOKEN;
 
-    this.apiClient.interceptors.request.use((config) => {
-      config.headers.Authorization = `Bearer ${_token}`;
-      return config;
+    this.apiClient.interceptors.request.use((axiosConfig) => {
+      axiosConfig.headers.Authorization = `Bearer ${_token}`;
+      return axiosConfig;
     });
 
     this.project = project || env.DOPPLER_PROJECT;
-    this.config = config || env.DOPPLER_CONFIG;
+    this.doplerConfig = config || env.DOPPLER_CONFIG;
   }
 
   async get(key: string): Promise<Secret | undefined> {
     const response = await this.apiClient.get("/secret", {
       params: {
         project: this.project,
-        config: this.config,
+        config: this.doplerConfig,
         name: key,
       },
       headers: {
-        Accept: "application/json",
+        accepts: "application/json", // was "Accept", Doppler uses "accepts"
       },
     });
 
@@ -49,27 +49,34 @@ export class DopplerClient {
       entries.map(({ key, value }) => [key, value]),
     );
 
-    const response = await this.apiClient.post("/secrets", {
-      project: this.project,
-      config: this.config,
-      secrets,
-    });
+    const response = await this.apiClient.post(
+      "/secrets",
+      {
+        project: this.project,
+        config: this.doplerConfig,
+        secrets,
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+      },
+    );
 
     return response.status === 200;
   }
 
-  async getAll(
-    includeManagedSecrets?: boolean,
-  ): Promise<
+  async getAll(includeManagedSecrets?: boolean): Promise<
     Record<
       string,
-      Secret["value"] & { rawVisibility: string; computedVisiblity: string }
+      Secret["value"] & {
+        rawVisibility: string;
+        computedVisibility: string; // fixed typo
+      }
     >
   > {
     const response = await this.apiClient.get("/secrets", {
       params: {
         project: this.project,
-        config: this.config,
+        config: this.doplerConfig,
         include_managed_secrets: includeManagedSecrets ? "true" : "false",
       },
     });
@@ -82,17 +89,25 @@ export class DopplerClient {
   }
 
   async delete(key: string): Promise<boolean> {
-    const response = await this.apiClient.delete("/secret", {
-      params: {
+    // Doppler has no DELETE /secret endpoint.
+    // Deletion is done via POST /secrets with change_requests.
+    const response = await this.apiClient.post(
+      "/secrets",
+      {
         project: this.project,
-        config: this.config,
-        name: key,
+        config: this.doplerConfig,
+        change_requests: [
+          {
+            name: key,
+            shouldDelete: true,
+          },
+        ],
       },
-      headers: {
-        Accept: "application/json",
+      {
+        headers: { "Content-Type": "application/json" },
       },
-    });
+    );
 
-    return response.status === 204;
+    return response.status === 200;
   }
 }

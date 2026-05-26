@@ -123,7 +123,7 @@ export class MonzoClient extends APIClient {
   }
 
   static getRefreshTokenKey(userId: string) {
-    return `${userId}-monzo_refresh`;
+    return `${userId.toUpperCase()}_MONZO_REFRESH`;
   }
 
   protected async onRefreshTokenRotated(
@@ -169,5 +169,10 @@ export class MonzoClient extends APIClient {
       account,
       pot,
     };
+  }
+
+  async storeAccountIds(accountId: string, potId: string) {
+    const storage = `${accountId};${potId};`;
+    await redis.set(`${this.userId}_monzoinf`, storage);
   }
 }

@@ -1,0 +1,223 @@
+import { useState } from "react";
+import type {
+  MonzoAccount,
+  MonzoConnectedResponse,
+  MonzoPot,
+} from "../../types/accounts";
+import StatusPill from "./StatusPill";
+
+type ConnectionState<T> =
+  | { status: "loading" }
+  | { status: "connected"; data: T }
+  | { status: "disconnected" }
+  | { status: "error"; message: string };
+
+type Props = {
+  state: ConnectionState<MonzoConnectedResponse>;
+};
+
+type LinkStep =
+  | { step: "idle" }
+  | { step: "picking"; accounts: MonzoAccount[]; pots: MonzoPot[] }
+  | { step: "saving"; accountId: string; potId: string };
+
+const MONZO_AUTH_URL = "authurl";
+
+const MonzoCard = ({ state }: Props) => {
+  const [linkStep, setLinkStep] = useState<LinkStep>({ step: "idle" });
+  const [selectedAccount, setSelectedAccount] = useState("");
+  const [selectedPot, setSelectedPot] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    // Kick off OAuth — on return the callback will redirect to "/"
+    window.location.href = MONZO_AUTH_URL;
+  };
+
+  const handlePickAccounts = async () => {
+    setError(null);
+    try {
+      const [accountsRes, potsRes] = await Promise.all([
+        fetch("/api/monzo/accounts/get"),
+        fetch("/api/monzo/pots/get"),
+      ]);
+      const accounts = await accountsRes.json();
+      const pots = await potsRes.json();
+      setLinkStep({ step: "picking", accounts, pots });
+    } catch {
+      setError("Failed to fetch accounts.");
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedAccount || !selectedPot) return;
+    setLinkStep({
+      step: "saving",
+      accountId: selectedAccount,
+      potId: selectedPot,
+    });
+    try {
+      await fetch("/api/monzo/connected", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: selectedAccount,
+          potId: selectedPot,
+        }),
+      });
+      window.location.reload();
+    } catch {
+      setError("Failed to save account.");
+      setLinkStep({ step: "idle" });
+    }
+  };
+
+  return (
+    <div
+      className="rounded-xl border p-5 flex flex-col gap-4"
+      style={{
+        backgroundColor: "#0d2035",
+        borderColor: "rgba(255,255,255,0.08)",
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* Monzo logo approximation */}
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white font-bold text-sm"
+            style={{ backgroundColor: "#ff4f40" }}
+          >
+            M
+          </div>
+          <div>
+            <p className="font-semibold text-white text-sm">Monzo</p>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Destination account &amp; pot
+            </p>
+          </div>
+        </div>
+        <StatusPill status={state.status} />
+      </div>
+
+      {/* Body */}
+      {state.status === "loading" && (
+        <div className="h-8 w-48 animate-pulse rounded-md bg-white/5" />
+      )}
+
+      {state.status === "connected" && (
+        <div className="flex flex-col gap-1.5">
+          <Detail label="Account" value={state.data.account.description} />
+          <Detail label="Pot" value={state.data.pot.name} />
+        </div>
+      )}
+
+      {state.status === "disconnected" && linkStep.step === "idle" && (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Connect your Monzo account to use it as the sync destination.
+          </p>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button
+            onClick={handleConnect}
+            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: "#ff4f40" }}
+          >
+            Connect Monzo
+          </button>
+        </div>
+      )}
+
+      {state.status === "error" && (
+        <p className="text-xs text-red-400">{state.message}</p>
+      )}
+
+      {/* Post-OAuth account picker (shown after redirect back if no stored account) */}
+      {state.status === "disconnected" && linkStep.step === "picking" && (
+        <div className="flex flex-col gap-3">
+          <Select
+            label="Account"
+            value={selectedAccount}
+            onChange={setSelectedAccount}
+            options={(linkStep.accounts as MonzoAccount[]).map((a) => ({
+              value: a.id,
+              label: a.description,
+            }))}
+          />
+          <Select
+            label="Pot"
+            value={selectedPot}
+            onChange={setSelectedPot}
+            options={(linkStep.pots as MonzoPot[]).map((p) => ({
+              value: p.id,
+              label: p.name,
+            }))}
+          />
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button
+            onClick={handleSave}
+            disabled={!selectedAccount || !selectedPot}
+            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={{ backgroundColor: "#ff4f40" }}
+          >
+            Save
+          </button>
+        </div>
+      )}
+
+      {linkStep.step === "saving" && (
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+          Saving…
+        </p>
+      )}
+    </div>
+  );
+};
+
+const Detail = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex items-center gap-2">
+    <span
+      className="w-16 shrink-0 text-xs"
+      style={{ color: "rgba(255,255,255,0.4)" }}
+    >
+      {label}
+    </span>
+    <span className="text-xs font-medium text-white">{value}</span>
+  </div>
+);
+
+const Select = ({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+      {label}
+    </label>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-lg border px-3 py-2 text-sm text-white outline-none focus:ring-2"
+      style={{
+        backgroundColor: "#091723",
+        borderColor: "rgba(255,255,255,0.12)",
+      }}
+    >
+      <option value="">Select {label.toLowerCase()}…</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+export default MonzoCard;

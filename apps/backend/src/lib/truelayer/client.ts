@@ -135,7 +135,7 @@ export class TrueLayerClient extends APIClient {
   }
 
   static getRefreshTokenKey(userId: string) {
-    return `${userId}-truelayer_refresh`;
+    return `${userId.toUpperCase()}_TRUELAYER_REFRESH`;
   }
 
   protected async onRefreshTokenRotated(
@@ -174,5 +174,11 @@ export class TrueLayerClient extends APIClient {
     if (!account) return;
 
     return account;
+  }
+
+  async storeAccountIds(accountId: string, accountName: string) {
+    const stored = `${accountId};${accountName}`;
+
+    await redis.set(`${this.userId}_tlinf`, stored);
   }
 }

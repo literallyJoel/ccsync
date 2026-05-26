@@ -1,21 +1,21 @@
-import { DopplerClient } from "apps/backend/src/lib/doppler/client";
 import { createController } from "apps/backend/src/lib/router";
 import { TrueLayerClient } from "apps/backend/src/lib/truelayer/client";
+import { getRefreshToken } from "apps/backend/src/lib/util";
 
 const GetConnectedTrueLayerController = createController(
   async (ctx) => {
-    const dopplerClient = new DopplerClient();
-    const tlToken = await dopplerClient.get(
-      TrueLayerClient.getRefreshTokenKey(ctx.user.id),
+    const { refreshToken, err } = await getRefreshToken(
+      ctx.user.id,
+      "truelayer",
     );
 
-    if (!tlToken) {
+    if (!refreshToken || err) {
       return Response.json({ error: "No account connected" }, { status: 404 });
     }
 
     const trueLayerClient = new TrueLayerClient({
       userId: ctx.user.id,
-      refreshToken: tlToken.value.raw,
+      refreshToken,
     });
 
     const account = await trueLayerClient.getStoredAccount();
