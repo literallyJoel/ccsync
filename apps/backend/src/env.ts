@@ -26,7 +26,7 @@ export const env = createEnv({
       .enum(["development", "production", "test"])
       .default("development"),
 
-    REDIS_URL: z.string(),
+    REDIS_URL: z.string(),  
   },
   runtimeEnv: bunEnv,
   emptyStringAsUndefined: true,

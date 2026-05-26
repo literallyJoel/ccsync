@@ -9,6 +9,7 @@ import type {
 import { APIClient } from "../api/client";
 import { env } from "../../env";
 import { DopplerClient } from "../doppler/client";
+import { redis } from "bun";
 
 const API_URL = "https://api.monzo.com";
 const AUTH_URL = "https://auth.monzo.com";
@@ -134,5 +135,39 @@ export class MonzoClient extends APIClient {
       key: MonzoClient.getRefreshTokenKey(this.userId),
       value: _newRefreshToken,
     });
+  }
+
+  async getStoredAccountIds() {
+    const monzoInfo = await redis.get(`${this.userId}_monzoinf`);
+
+    if (!monzoInfo) return {};
+
+    const [accountId, potId] = monzoInfo.split(";");
+
+    return {
+      accountId,
+      potId,
+    };
+  }
+
+  async getStoredAccount() {
+    const { accountId, potId } = await this.getStoredAccountIds();
+
+    if (!accountId || !potId) return {};
+
+    const accounts = await this.getAccounts();
+    const account = accounts.filter((account) => account.id === accountId)[0];
+
+    if (!account) return {};
+
+    const pots = await this.getPots(accountId);
+    const pot = pots.filter((pot) => pot.id === potId)[0];
+
+    if (!pot) return {};
+
+    return {
+      account,
+      pot,
+    };
   }
 }

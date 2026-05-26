@@ -8,6 +8,7 @@ import type {
 import { APIClient } from "../api/client";
 import { env } from "../../env";
 import { DopplerClient } from "../doppler/client";
+import { redis } from "bun";
 
 const AUTH_URLS = {
   production: "https://auth.truelayer.com",
@@ -146,5 +147,32 @@ export class TrueLayerClient extends APIClient {
       key: TrueLayerClient.getRefreshTokenKey(this.userId),
       value: _newRefreshToken,
     });
+  }
+
+  async getStoredAccountIds() {
+    const trueLayerInfo = await redis.get(`${this.userId}_tlinf`);
+
+    if (!trueLayerInfo) return {};
+
+    const [accountId, accountName] = trueLayerInfo.split(";");
+
+    return {
+      accountId,
+      accountName,
+    };
+  }
+
+  async getStoredAccount() {
+    const { accountId } = await this.getStoredAccountIds();
+
+    if (!accountId) return;
+
+    const accounts = await this.getAccounts();
+
+    const account = accounts.filter((acct) => acct.account_id === accountId)[0];
+
+    if (!account) return;
+
+    return account;
   }
 }
