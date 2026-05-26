@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@clerk/react";
 import type {
   MonzoAccount,
   MonzoConnectedResponse,
@@ -21,25 +22,32 @@ type LinkStep =
   | { step: "picking"; accounts: MonzoAccount[]; pots: MonzoPot[] }
   | { step: "saving"; accountId: string; potId: string };
 
-const MONZO_AUTH_URL = "authurl";
-
 const MonzoCard = ({ state }: Props) => {
   const [linkStep, setLinkStep] = useState<LinkStep>({ step: "idle" });
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedPot, setSelectedPot] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { getToken } = useAuth();
 
   const handleConnect = async () => {
-    // Kick off OAuth — on return the callback will redirect to "/"
-    window.location.href = MONZO_AUTH_URL;
+    const token = await getToken();
+    const response = await fetch("/api/monzo/auth", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const { url } = await response.json();
+
+    window.location.href = url.toString();
   };
 
   const handlePickAccounts = async () => {
     setError(null);
     try {
+      const token = await getToken();
+      const headers = { Authorization: `Bearer ${token}` };
       const [accountsRes, potsRes] = await Promise.all([
-        fetch("/api/monzo/accounts/get"),
-        fetch("/api/monzo/pots/get"),
+        fetch("/api/monzo/accounts/get", { headers }),
+        fetch("/api/monzo/pots/get", { headers }),
       ]);
       const accounts = await accountsRes.json();
       const pots = await potsRes.json();
@@ -57,9 +65,13 @@ const MonzoCard = ({ state }: Props) => {
       potId: selectedPot,
     });
     try {
+      const token = await getToken();
       await fetch("/api/monzo/connected", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           accountId: selectedAccount,
           potId: selectedPot,
@@ -83,7 +95,6 @@ const MonzoCard = ({ state }: Props) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Monzo logo approximation */}
           <div
             className="flex h-10 w-10 items-center justify-center rounded-full text-white font-bold text-sm"
             style={{ backgroundColor: "#ff4f40" }}
@@ -120,7 +131,7 @@ const MonzoCard = ({ state }: Props) => {
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button
             onClick={handleConnect}
-            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80"
+            className="w-fit rounded-lg px-4 py-2 text-sm cursor-pointer font-semibold text-white transition-opacity hover:opacity-80"
             style={{ backgroundColor: "#ff4f40" }}
           >
             Connect Monzo
@@ -132,7 +143,6 @@ const MonzoCard = ({ state }: Props) => {
         <p className="text-xs text-red-400">{state.message}</p>
       )}
 
-      {/* Post-OAuth account picker (shown after redirect back if no stored account) */}
       {state.status === "disconnected" && linkStep.step === "picking" && (
         <div className="flex flex-col gap-3">
           <Select

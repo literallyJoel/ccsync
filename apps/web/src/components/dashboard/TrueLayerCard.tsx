@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@clerk/react";
 import type {
   TrueLayerAccount,
   TrueLayerConnectedResponse,
@@ -15,22 +16,31 @@ type Props = {
   state: ConnectionState<TrueLayerConnectedResponse>;
 };
 
-const TRUELAYER_AUTH_URL = "authurl";
-
 const TrueLayerCard = ({ state }: Props) => {
   const [accounts, setAccounts] = useState<TrueLayerAccount[] | null>(null);
   const [selected, setSelected] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { getToken } = useAuth();
 
-  const handleConnect = () => {
-    window.location.href = TRUELAYER_AUTH_URL;
+  const handleConnect = async () => {
+    const token = await getToken();
+    const response = await fetch("/api/truelayer/auth", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const { url } = await response.json();
+
+    window.location.href = url.toString();
   };
 
   const handlePickAccount = async () => {
     setError(null);
     try {
-      const res = await fetch("/api/truelayer/accounts");
+      const token = await getToken();
+      const res = await fetch("/api/truelayer/accounts", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setAccounts(data);
     } catch {
@@ -43,9 +53,13 @@ const TrueLayerCard = ({ state }: Props) => {
     if (!account) return;
     setSaving(true);
     try {
+      const token = await getToken();
       await fetch("/api/truelayer/connected", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           accountId: account.account_id,
           accountName: account.display_name,
@@ -105,7 +119,7 @@ const TrueLayerCard = ({ state }: Props) => {
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button
             onClick={handleConnect}
-            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80"
+            className="w-fit rounded-lg px-4 py-2 text-sm cursor-pointer font-semibold text-white transition-opacity hover:opacity-80"
             style={{ backgroundColor: "#1a6ef5" }}
           >
             Connect Credit Card

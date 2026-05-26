@@ -11,6 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as AuthTruelayerErrorRouteImport } from './routes/auth/truelayer/error'
+import { Route as AuthTruelayerCallbackRouteImport } from './routes/auth/truelayer/callback'
+import { Route as AuthMonzoErrorRouteImport } from './routes/auth/monzo/error'
+import { Route as AuthMonzoCallbackRouteImport } from './routes/auth/monzo/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +26,86 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/dashboard/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthTruelayerErrorRoute = AuthTruelayerErrorRouteImport.update({
+  id: '/auth/truelayer/error',
+  path: '/auth/truelayer/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthTruelayerCallbackRoute = AuthTruelayerCallbackRouteImport.update({
+  id: '/auth/truelayer/callback',
+  path: '/auth/truelayer/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthMonzoErrorRoute = AuthMonzoErrorRouteImport.update({
+  id: '/auth/monzo/error',
+  path: '/auth/monzo/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthMonzoCallbackRoute = AuthMonzoCallbackRouteImport.update({
+  id: '/auth/monzo/callback',
+  path: '/auth/monzo/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/auth/monzo/callback': typeof AuthMonzoCallbackRoute
+  '/auth/monzo/error': typeof AuthMonzoErrorRoute
+  '/auth/truelayer/callback': typeof AuthTruelayerCallbackRoute
+  '/auth/truelayer/error': typeof AuthTruelayerErrorRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/auth/monzo/callback': typeof AuthMonzoCallbackRoute
+  '/auth/monzo/error': typeof AuthMonzoErrorRoute
+  '/auth/truelayer/callback': typeof AuthTruelayerCallbackRoute
+  '/auth/truelayer/error': typeof AuthTruelayerErrorRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/auth/monzo/callback': typeof AuthMonzoCallbackRoute
+  '/auth/monzo/error': typeof AuthMonzoErrorRoute
+  '/auth/truelayer/callback': typeof AuthTruelayerCallbackRoute
+  '/auth/truelayer/error': typeof AuthTruelayerErrorRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard/'
+  fullPaths:
+    | '/'
+    | '/dashboard/'
+    | '/auth/monzo/callback'
+    | '/auth/monzo/error'
+    | '/auth/truelayer/callback'
+    | '/auth/truelayer/error'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard'
-  id: '__root__' | '/' | '/dashboard/'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/auth/monzo/callback'
+    | '/auth/monzo/error'
+    | '/auth/truelayer/callback'
+    | '/auth/truelayer/error'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard/'
+    | '/auth/monzo/callback'
+    | '/auth/monzo/error'
+    | '/auth/truelayer/callback'
+    | '/auth/truelayer/error'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  AuthMonzoCallbackRoute: typeof AuthMonzoCallbackRoute
+  AuthMonzoErrorRoute: typeof AuthMonzoErrorRoute
+  AuthTruelayerCallbackRoute: typeof AuthTruelayerCallbackRoute
+  AuthTruelayerErrorRoute: typeof AuthTruelayerErrorRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +124,44 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/truelayer/error': {
+      id: '/auth/truelayer/error'
+      path: '/auth/truelayer/error'
+      fullPath: '/auth/truelayer/error'
+      preLoaderRoute: typeof AuthTruelayerErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/truelayer/callback': {
+      id: '/auth/truelayer/callback'
+      path: '/auth/truelayer/callback'
+      fullPath: '/auth/truelayer/callback'
+      preLoaderRoute: typeof AuthTruelayerCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/monzo/error': {
+      id: '/auth/monzo/error'
+      path: '/auth/monzo/error'
+      fullPath: '/auth/monzo/error'
+      preLoaderRoute: typeof AuthMonzoErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/monzo/callback': {
+      id: '/auth/monzo/callback'
+      path: '/auth/monzo/callback'
+      fullPath: '/auth/monzo/callback'
+      preLoaderRoute: typeof AuthMonzoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  AuthMonzoCallbackRoute: AuthMonzoCallbackRoute,
+  AuthMonzoErrorRoute: AuthMonzoErrorRoute,
+  AuthTruelayerCallbackRoute: AuthTruelayerCallbackRoute,
+  AuthTruelayerErrorRoute: AuthTruelayerErrorRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

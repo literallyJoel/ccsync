@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "ccsync",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "turbo": "^2.9.14",
