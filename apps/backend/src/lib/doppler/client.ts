@@ -85,7 +85,7 @@ export class DopplerClient {
     const response = await this.apiClient.delete("/secret", {
       params: {
         project: this.project,
-        conifg: this.config,
+        config: this.config,
         name: key,
       },
       headers: {

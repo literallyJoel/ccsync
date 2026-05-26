@@ -13,7 +13,7 @@ const TrueLayerAccountsController = createController(
     if (err) {
       return Response.json(
         { error: err },
-        err === "doppler_client_failed" ? 500 : 401,
+        { status: err === "doppler_client_failed" ? 500 : 401 },
       );
     }
 
@@ -25,9 +25,15 @@ const TrueLayerAccountsController = createController(
       return Response.json(accounts);
     } catch (err) {
       if (err instanceof ApiError) {
-        return Response.json(err.message, err.status || 500);
+        return Response.json(
+          { error: err.message },
+          { status: err.status || 500 },
+        );
       } else {
-        return Response.json((err as Error).message, 500);
+        return Response.json(
+          { error: (err as Error).message },
+          { status: 500 },
+        );
       }
     }
   },

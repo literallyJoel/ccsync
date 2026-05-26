@@ -120,6 +120,7 @@ export abstract class APIClient {
         throw this.createError(e, "Failed to get refresh token", 401);
       });
   }
+
   protected requiresUserAuth() {
     return !this.token && !this.refreshToken;
   }
