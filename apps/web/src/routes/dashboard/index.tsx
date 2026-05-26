@@ -1,13 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import MonzoCard from "../../components/dashboard/MonzoCard";
 import TrueLayerCard from "../../components/dashboard/TrueLayerCard";
 import { useConnectedAccounts } from "../../hooks/useConnectedAccounts";
 
+const searchSchema = z.object({
+  monzoSetup: z.literal("select").optional(),
+});
+
 export const Route = createFileRoute("/dashboard/")({
+  validateSearch: searchSchema,
   component: Dashboard,
 });
 
 function Dashboard() {
+  const { monzoSetup } = Route.useSearch();
   const { monzo, trueLayer, lastSync } = useConnectedAccounts();
 
   const bothConnected =
@@ -124,7 +131,7 @@ function Dashboard() {
         {/* Account cards */}
         <div className="grid gap-4 sm:grid-cols-2">
           <TrueLayerCard state={trueLayer} />
-          <MonzoCard state={monzo} />
+          <MonzoCard state={monzo} startSelecting={monzoSetup === "select"} />
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { z } from "zod";
 const ConnectMonzoAccountController = createController(
   async (ctx) => {
     const monzoClient = new MonzoClient({ userId: ctx.user.id });
-    monzoClient.storeAccountIds(ctx.json.accountId, ctx.json.potId);
+    await monzoClient.storeAccountIds(ctx.json.accountId, ctx.json.potId);
 
     return Response.json("OK");
   },

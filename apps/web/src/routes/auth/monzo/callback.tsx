@@ -1,5 +1,5 @@
 import { getToken } from "@clerk/react";
-import { createFileRoute, getRouteApi, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 const querySchema = z.object({
@@ -33,6 +33,7 @@ export const Route = createFileRoute("/auth/monzo/callback")({
 
     throw redirect({
       to: "/dashboard",
+      search: { monzoSetup: "select" },
     });
   },
 });

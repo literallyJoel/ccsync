@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import type {
   MonzoAccount,
@@ -15,18 +15,23 @@ type ConnectionState<T> =
 
 type Props = {
   state: ConnectionState<MonzoConnectedResponse>;
+  startSelecting?: boolean;
 };
 
 type LinkStep =
   | { step: "idle" }
-  | { step: "picking"; accounts: MonzoAccount[]; pots: MonzoPot[] }
+  | { step: "loadingAccounts" }
+  | { step: "pickingAccount"; accounts: MonzoAccount[] }
+  | { step: "loadingPots"; accounts: MonzoAccount[]; accountId: string }
+  | { step: "pickingPot"; accounts: MonzoAccount[]; pots: MonzoPot[] }
   | { step: "saving"; accountId: string; potId: string };
 
-const MonzoCard = ({ state }: Props) => {
+const MonzoCard = ({ state, startSelecting = false }: Props) => {
   const [linkStep, setLinkStep] = useState<LinkStep>({ step: "idle" });
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedPot, setSelectedPot] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const attemptedAutoSelect = useRef(false);
   const { getToken } = useAuth();
 
   const handleConnect = async () => {
@@ -42,31 +47,70 @@ const MonzoCard = ({ state }: Props) => {
 
   const handlePickAccounts = async () => {
     setError(null);
+    setLinkStep({ step: "loadingAccounts" });
+
     try {
       const token = await getToken();
-      const headers = { Authorization: `Bearer ${token}` };
-      const [accountsRes, potsRes] = await Promise.all([
-        fetch("/api/monzo/accounts/get", { headers }),
-        fetch("/api/monzo/pots/get", { headers }),
-      ]);
-      const accounts = await accountsRes.json();
-      const pots = await potsRes.json();
-      setLinkStep({ step: "picking", accounts, pots });
+      const response = await fetch("/api/monzo/accounts/get", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      const accounts = (await response.json()) as MonzoAccount[];
+      setLinkStep({ step: "pickingAccount", accounts });
     } catch {
       setError("Failed to fetch accounts.");
+      setLinkStep({ step: "idle" });
+    }
+  };
+
+  const handleAccountChange = async (accountId: string) => {
+    setSelectedAccount(accountId);
+    setSelectedPot("");
+
+    const accounts =
+      linkStep.step === "pickingAccount" || linkStep.step === "pickingPot"
+        ? linkStep.accounts
+        : [];
+
+    if (!accountId) {
+      setLinkStep({ step: "pickingAccount", accounts });
+      return;
+    }
+
+    setError(null);
+    setLinkStep({ step: "loadingPots", accounts, accountId });
+
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `/api/monzo/pots/get?accountId=${encodeURIComponent(accountId)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (!response.ok) throw new Error(await response.text());
+
+      const pots = (await response.json()) as MonzoPot[];
+      setLinkStep({ step: "pickingPot", accounts, pots });
+    } catch {
+      setError("Failed to fetch pots.");
+      setLinkStep({ step: "pickingAccount", accounts });
     }
   };
 
   const handleSave = async () => {
     if (!selectedAccount || !selectedPot) return;
+
     setLinkStep({
       step: "saving",
       accountId: selectedAccount,
       potId: selectedPot,
     });
+
     try {
       const token = await getToken();
-      await fetch("/api/monzo/connected", {
+      const response = await fetch("/api/monzo/connected", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,12 +121,27 @@ const MonzoCard = ({ state }: Props) => {
           potId: selectedPot,
         }),
       });
+
+      if (!response.ok) throw new Error(await response.text());
+
       window.location.reload();
     } catch {
       setError("Failed to save account.");
       setLinkStep({ step: "idle" });
     }
   };
+
+  useEffect(() => {
+    if (
+      startSelecting &&
+      state.status === "disconnected" &&
+      linkStep.step === "idle" &&
+      !attemptedAutoSelect.current
+    ) {
+      attemptedAutoSelect.current = true;
+      void handlePickAccounts();
+    }
+  }, [startSelecting, state.status, linkStep.step]);
 
   return (
     <div
@@ -92,7 +151,6 @@ const MonzoCard = ({ state }: Props) => {
         borderColor: "rgba(255,255,255,0.08)",
       }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -111,7 +169,6 @@ const MonzoCard = ({ state }: Props) => {
         <StatusPill status={state.status} />
       </div>
 
-      {/* Body */}
       {state.status === "loading" && (
         <div className="h-8 w-48 animate-pulse rounded-md bg-white/5" />
       )}
@@ -143,41 +200,64 @@ const MonzoCard = ({ state }: Props) => {
         <p className="text-xs text-red-400">{state.message}</p>
       )}
 
-      {state.status === "disconnected" && linkStep.step === "picking" && (
-        <div className="flex flex-col gap-3">
-          <Select
-            label="Account"
-            value={selectedAccount}
-            onChange={setSelectedAccount}
-            options={(linkStep.accounts as MonzoAccount[]).map((a) => ({
-              value: a.id,
-              label: a.description,
-            }))}
-          />
-          <Select
-            label="Pot"
-            value={selectedPot}
-            onChange={setSelectedPot}
-            options={(linkStep.pots as MonzoPot[]).map((p) => ({
-              value: p.id,
-              label: p.name,
-            }))}
-          />
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          <button
-            onClick={handleSave}
-            disabled={!selectedAccount || !selectedPot}
-            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
-            style={{ backgroundColor: "#ff4f40" }}
-          >
-            Save
-          </button>
-        </div>
-      )}
+      {state.status === "disconnected" &&
+        linkStep.step === "loadingAccounts" && (
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Loading Monzo accounts...
+          </p>
+        )}
+
+      {state.status === "disconnected" &&
+        (linkStep.step === "pickingAccount" ||
+          linkStep.step === "loadingPots" ||
+          linkStep.step === "pickingPot") && (
+          <div className="flex flex-col gap-3">
+            <Select
+              label="Account"
+              value={selectedAccount}
+              onChange={handleAccountChange}
+              disabled={linkStep.step === "loadingPots"}
+              options={linkStep.accounts.map((a) => ({
+                value: a.id,
+                label: a.description,
+              }))}
+            />
+
+            {linkStep.step === "loadingPots" && (
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Loading pots...
+              </p>
+            )}
+
+            {linkStep.step === "pickingPot" && (
+              <Select
+                label="Pot"
+                value={selectedPot}
+                onChange={setSelectedPot}
+                options={linkStep.pots.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+              />
+            )}
+
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <button
+              onClick={handleSave}
+              disabled={
+                linkStep.step !== "pickingPot" || !selectedAccount || !selectedPot
+              }
+              className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+              style={{ backgroundColor: "#ff4f40" }}
+            >
+              Save
+            </button>
+          </div>
+        )}
 
       {linkStep.step === "saving" && (
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-          Saving…
+          Saving...
         </p>
       )}
     </div>
@@ -201,11 +281,13 @@ const Select = ({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  disabled?: boolean;
 }) => (
   <div className="flex flex-col gap-1">
     <label className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
@@ -214,13 +296,14 @@ const Select = ({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border px-3 py-2 text-sm text-white outline-none focus:ring-2"
+      disabled={disabled}
+      className="rounded-lg border px-3 py-2 text-sm text-white outline-none focus:ring-2 disabled:opacity-60"
       style={{
         backgroundColor: "#091723",
         borderColor: "rgba(255,255,255,0.12)",
       }}
     >
-      <option value="">Select {label.toLowerCase()}…</option>
+      <option value="">Select {label.toLowerCase()}...</option>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
