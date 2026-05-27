@@ -32,7 +32,16 @@ const MonzoPotsController = createController(
     try {
       const pots = await monzoClient.getPots(accountId);
 
-      return Response.json(pots);
+      const ret = pots
+        .filter((pot) => !pot.deleted)
+        .map((pot) => ({
+          id: pot.id,
+          name: pot.name,
+          style: pot.style,
+          cover_image_url: pot.cover_image_url,
+        }));
+
+      return Response.json(ret);
     } catch (err) {
       if (err instanceof ApiError) {
         return Response.json(

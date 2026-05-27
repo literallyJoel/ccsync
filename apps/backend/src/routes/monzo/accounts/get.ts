@@ -26,7 +26,14 @@ const MonzoAccountsController = createController(
     try {
       const accounts = await monzoClient.getAccounts();
 
-      return Response.json(accounts);
+      const ret = accounts.map((account) => ({
+        id: account.id,
+        is_flex: account.is_flex,
+        assets: account.assets,
+        owner_type: account.owner_type,
+      }));
+
+      return Response.json(ret);
     } catch (err) {
       if (err instanceof ApiError) {
         return Response.json(
