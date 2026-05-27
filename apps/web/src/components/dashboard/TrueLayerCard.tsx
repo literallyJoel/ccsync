@@ -3,7 +3,7 @@ import { useAuth } from "@clerk/react";
 import type {
   TrueLayerAccount,
   TrueLayerConnectedResponse,
-} from "../../types/accounts";
+} from "../../types/truelayer";
 import StatusPill from "./StatusPill";
 
 type ConnectionState<T> =

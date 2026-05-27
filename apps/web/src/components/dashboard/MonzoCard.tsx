@@ -1,32 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
-import type {
+import {
+  ConnectionState,
+  LinkStep,
   MonzoAccount,
   MonzoConnectedResponse,
   MonzoPot,
-} from "../../types/accounts";
+} from "../../types/monzo";
 import StatusPill from "./StatusPill";
+import Detail from "./MonzoCard/Detail";
+import SkeletonGrid from "./MonzoCard/SkeletonGrid";
+import AccountPicker from "./MonzoCard/AccountPicker";
+import PotPicker from "./MonzoCard/PotPicker";
 
-type ConnectionState<T> =
-  | { status: "loading" }
-  | { status: "connected"; data: T }
-  | { status: "disconnected" }
-  | { status: "error"; message: string };
-
-type Props = {
+interface MonzoCardProps {
   state: ConnectionState<MonzoConnectedResponse>;
   startSelecting?: boolean;
-};
+}
 
-type LinkStep =
-  | { step: "idle" }
-  | { step: "loadingAccounts" }
-  | { step: "pickingAccount"; accounts: MonzoAccount[] }
-  | { step: "loadingPots"; accounts: MonzoAccount[]; accountId: string }
-  | { step: "pickingPot"; accounts: MonzoAccount[]; pots: MonzoPot[] }
-  | { step: "saving"; accountId: string; potId: string };
-
-const MonzoCard = ({ state, startSelecting = false }: Props) => {
+const MonzoCard = ({ state, startSelecting = false }: MonzoCardProps) => {
   const [linkStep, setLinkStep] = useState<LinkStep>({ step: "idle" });
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedPot, setSelectedPot] = useState("");
@@ -167,9 +159,22 @@ const MonzoCard = ({ state, startSelecting = false }: Props) => {
       {/* Connected */}
       {state.status === "connected" && (
         <div className="flex flex-col gap-1.5">
-          <Detail label="Account" value={state.data.account.description} />
-          <Detail label="Pot" value={state.data.pot.name} />
+          <Detail
+            label="Account"
+            value={`${state.data.account.owner_type}${state.data.account.is_flex ? " (Flex)" : ""}`}
+            image={state.data.account.assets.image_url}
+          />
+          <Detail
+            label="Pot"
+            value={state.data.pot.name}
+            image={state.data.pot.cover_image_url}
+          />
         </div>
+      )}
+
+      {/* Error state */}
+      {state.status === "error" && (
+        <p className="text-xs text-red-400">{state.message}</p>
       )}
 
       {/* Idle — prompt to connect */}
@@ -189,11 +194,6 @@ const MonzoCard = ({ state, startSelecting = false }: Props) => {
         </div>
       )}
 
-      {/* Error state */}
-      {state.status === "error" && (
-        <p className="text-xs text-red-400">{state.message}</p>
-      )}
-
       {/* Loading accounts */}
       {state.status === "disconnected" &&
         linkStep.step === "loadingAccounts" && (
@@ -201,189 +201,27 @@ const MonzoCard = ({ state, startSelecting = false }: Props) => {
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
               Loading accounts...
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              {[...Array(2)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-12 animate-pulse rounded-lg bg-white/5"
-                />
-              ))}
-            </div>
+            <SkeletonGrid label="" count={2} />
           </div>
         )}
 
       {/* Account + pot picking */}
       {state.status === "disconnected" && isPickingStep && (
         <div className="flex flex-col gap-4">
-          {/* Step label */}
-          <div className="flex flex-col gap-2">
-            <p
-              className="text-xs font-medium"
-              style={{ color: "rgba(255,255,255,0.4)" }}
-            >
-              Account
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {linkStep.accounts.map((account) => {
-                const isSelected = selectedAccount === account.id;
-                return (
-                  <button
-                    key={account.id}
-                    onClick={() => handleAccountChange(account.id)}
-                    disabled={linkStep.step === "loadingPots"}
-                    className="flex flex-row items-center gap-2.5 rounded-lg border p-3 text-left transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: isSelected
-                        ? "rgba(255,79,64,0.12)"
-                        : "rgba(255,255,255,0.03)",
-                      borderColor: isSelected
-                        ? "rgba(255,79,64,0.5)"
-                        : "rgba(255,255,255,0.08)",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isSelected) return;
-                      e.currentTarget.style.backgroundColor =
-                        "rgba(255,255,255,0.07)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(255,255,255,0.15)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isSelected) return;
-                      e.currentTarget.style.backgroundColor =
-                        "rgba(255,255,255,0.03)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(255,255,255,0.08)";
-                    }}
-                  >
-                    <img
-                      src={account.assets.image_url}
-                      width={28}
-                      height={28}
-                      className="rounded-full border border-white/10 shrink-0"
-                      alt=""
-                    />
-                    <span className="text-xs font-semibold text-white leading-tight">
-                      {account.owner_type}
-                      {account.is_flex && (
-                        <span
-                          className="block font-normal"
-                          style={{ color: "rgba(255,255,255,0.45)" }}
-                        >
-                          Flex
-                        </span>
-                      )}
-                    </span>
-                    {isSelected && (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#ff4f40"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="ml-auto h-3.5 w-3.5 shrink-0"
-                        aria-hidden="true"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <AccountPicker
+            accounts={linkStep.accounts}
+            selectedAccount={selectedAccount}
+            isLoadingPots={linkStep.step === "loadingPots"}
+            linkStep={linkStep}
+            onSelect={handleAccountChange}
+          />
 
-          {/* Loading pots skeleton */}
-          {linkStep.step === "loadingPots" && (
-            <div className="flex flex-col gap-2">
-              <p
-                className="text-xs font-medium"
-                style={{ color: "rgba(255,255,255,0.4)" }}
-              >
-                Pot
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-12 animate-pulse rounded-lg bg-white/5"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pot picker */}
           {linkStep.step === "pickingPot" && (
-            <div className="flex flex-col gap-2">
-              <p
-                className="text-xs font-medium"
-                style={{ color: "rgba(255,255,255,0.4)" }}
-              >
-                Pot
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {linkStep.pots.map((pot) => {
-                  const isSelected = selectedPot === pot.id;
-                  return (
-                    <button
-                      key={pot.id}
-                      onClick={() => setSelectedPot(pot.id)}
-                      className="flex flex-row items-center gap-2.5 rounded-lg border p-3 text-left transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      style={{
-                        backgroundColor: isSelected
-                          ? "rgba(255,79,64,0.12)"
-                          : "rgba(255,255,255,0.03)",
-                        borderColor: isSelected
-                          ? "rgba(255,79,64,0.5)"
-                          : "rgba(255,255,255,0.08)",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (isSelected) return;
-                        e.currentTarget.style.backgroundColor =
-                          "rgba(255,255,255,0.07)";
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,255,255,0.15)";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (isSelected) return;
-                        e.currentTarget.style.backgroundColor =
-                          "rgba(255,255,255,0.03)";
-                        e.currentTarget.style.borderColor =
-                          "rgba(255,255,255,0.08)";
-                      }}
-                    >
-                      <img
-                        src={pot.cover_image_url}
-                        width={50}
-                        height={50}
-                        className="rounded-full border border-white/10 shrink-0"
-                        alt=""
-                      />
-                      <span className="text-xs font-semibold text-white leading-tight">
-                        {pot.name}
-                      </span>
-                      {isSelected && (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#ff4f40"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="ml-auto h-3.5 w-3.5 shrink-0"
-                          aria-hidden="true"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <PotPicker
+              pots={linkStep.pots}
+              selectedPot={selectedPot}
+              onSelect={setSelectedPot}
+            />
           )}
 
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -410,17 +248,5 @@ const MonzoCard = ({ state, startSelecting = false }: Props) => {
     </div>
   );
 };
-
-const Detail = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex items-center gap-2">
-    <span
-      className="w-16 shrink-0 text-xs"
-      style={{ color: "rgba(255,255,255,0.4)" }}
-    >
-      {label}
-    </span>
-    <span className="text-xs font-medium text-white">{value}</span>
-  </div>
-);
 
 export default MonzoCard;
