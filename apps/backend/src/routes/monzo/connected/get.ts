@@ -24,11 +24,16 @@ const GetConnectedMonzoController = createController(
       id: pot.id,
       name: pot.name,
       style: pot.style,
+      cover_image_url: pot.cover_image_url,
     };
+
     const returnAccount = {
       id: account.id,
-      description: account.description,
+      is_flex: account.is_flex,
+      assets: account.assets,
+      owner_type: account.owner_type,
     };
+
     return Response.json({
       pot: returnPot,
       account: returnAccount,
