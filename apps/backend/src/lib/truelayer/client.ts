@@ -51,7 +51,7 @@ export class TrueLayerClient extends APIClient {
       response_type: "code",
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
-      scopes: scopes.join(" "),
+      scope: scopes.join(" "),
       user_email: email,
       providers: "uk-ob-all",
       ...(providerId && { provider_id: providerId }),
