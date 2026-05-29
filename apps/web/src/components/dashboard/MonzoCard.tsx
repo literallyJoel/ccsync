@@ -8,8 +8,8 @@ import {
   MonzoPot,
 } from "../../types/monzo";
 import StatusPill from "./StatusPill";
-import Detail from "./MonzoCard/Detail";
-import SkeletonGrid from "./MonzoCard/SkeletonGrid";
+import Detail from "./shared/Detail";
+import SkeletonGrid from "./shared/SkeletonGrid";
 import AccountPicker from "./MonzoCard/AccountPicker";
 import PotPicker from "./MonzoCard/PotPicker";
 

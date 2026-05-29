@@ -7,7 +7,7 @@ export async function sendEmail(props: Omit<CreateEmailOptions, "from">) {
 
     const sendOpts = {
       ...props,
-      from: "ccsync@jdvivian.co.uk",
+      from: "ccsync@ccsync.jdvivian.co.uk",
     } as CreateEmailOptions;
 
     const response = await resend.emails.send(sendOpts);

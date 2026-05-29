@@ -1,5 +1,8 @@
 interface SelectionButtonProps {
   isSelected: boolean;
+  accentColor?: string;
+  selectedBackgroundColor?: string;
+  selectedBorderColor?: string;
   disabled?: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -7,6 +10,9 @@ interface SelectionButtonProps {
 
 const SelectionButton = ({
   isSelected,
+  accentColor = "#ff4f40",
+  selectedBackgroundColor = "rgba(255,79,64,0.12)",
+  selectedBorderColor = "rgba(255,79,64,0.5)",
   disabled,
   onClick,
   children,
@@ -17,11 +23,9 @@ const SelectionButton = ({
     className="flex flex-row items-center gap-2.5 rounded-lg border p-3 text-left transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
     style={{
       backgroundColor: isSelected
-        ? "rgba(255,79,64,0.12)"
+        ? selectedBackgroundColor
         : "rgba(255,255,255,0.03)",
-      borderColor: isSelected
-        ? "rgba(255,79,64,0.5)"
-        : "rgba(255,255,255,0.08)",
+      borderColor: isSelected ? selectedBorderColor : "rgba(255,255,255,0.08)",
     }}
     onMouseEnter={(e) => {
       if (isSelected) return;
@@ -40,7 +44,7 @@ const SelectionButton = ({
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="#ff4f40"
+        stroke={accentColor}
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"

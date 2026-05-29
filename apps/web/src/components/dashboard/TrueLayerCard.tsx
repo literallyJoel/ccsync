@@ -1,26 +1,28 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import type {
+  TrueLayerLinkStep,
   TrueLayerAccount,
   TrueLayerConnectedResponse,
 } from "../../types/truelayer";
+import type { ConnectionState } from "../../types/monzo";
 import StatusPill from "./StatusPill";
-
-type ConnectionState<T> =
-  | { status: "loading" }
-  | { status: "connected"; data: T }
-  | { status: "disconnected" }
-  | { status: "error"; message: string };
+import Detail from "./shared/Detail";
+import SkeletonGrid from "./shared/SkeletonGrid";
+import AccountPicker from "./TrueLayerCard/AccountPicker";
 
 type Props = {
   state: ConnectionState<TrueLayerConnectedResponse>;
+  startSelecting?: boolean;
 };
 
-const TrueLayerCard = ({ state }: Props) => {
-  const [accounts, setAccounts] = useState<TrueLayerAccount[] | null>(null);
-  const [selected, setSelected] = useState("");
-  const [saving, setSaving] = useState(false);
+const TrueLayerCard = ({ state, startSelecting = false }: Props) => {
+  const [linkStep, setLinkStep] = useState<TrueLayerLinkStep>({
+    step: "idle",
+  });
+  const [selectedAccount, setSelectedAccount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const attemptedAutoSelect = useRef(false);
   const { getToken } = useAuth();
 
   const handleConnect = async () => {
@@ -34,43 +36,62 @@ const TrueLayerCard = ({ state }: Props) => {
     window.location.href = url.toString();
   };
 
-  const handlePickAccount = async () => {
+  const handlePickAccounts = async () => {
     setError(null);
+    setLinkStep({ step: "loadingAccounts" });
     try {
       const token = await getToken();
-      const res = await fetch("/api/truelayer/accounts", {
+      const response = await fetch("/api/truelayer/accounts", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      setAccounts(data);
+      if (!response.ok) throw new Error(await response.text());
+      const accounts = (await response.json()) as TrueLayerAccount[];
+      setLinkStep({ step: "pickingAccount", accounts });
     } catch {
       setError("Failed to fetch accounts.");
+      setLinkStep({ step: "idle" });
     }
   };
 
   const handleSave = async () => {
-    const account = accounts?.find((a) => a.account_id === selected);
+    const accounts =
+      linkStep.step === "pickingAccount" ? linkStep.accounts : [];
+    const account = accounts.find((account) => account.id === selectedAccount);
     if (!account) return;
-    setSaving(true);
+
+    setLinkStep({ step: "saving", accountId: selectedAccount });
     try {
       const token = await getToken();
-      await fetch("/api/truelayer/connected", {
+      const response = await fetch("/api/truelayer/connected", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          accountId: account.account_id,
-          accountName: account.display_name,
+          accountId: account.id,
+          accountName: account.displayName,
         }),
       });
+      if (!response.ok) throw new Error(await response.text());
       window.location.reload();
     } catch {
       setError("Failed to save account.");
-      setSaving(false);
+      setLinkStep({ step: "pickingAccount", accounts });
     }
   };
+
+  useEffect(() => {
+    if (
+      startSelecting &&
+      state.status === "disconnected" &&
+      linkStep.step === "idle" &&
+      !attemptedAutoSelect.current
+    ) {
+      attemptedAutoSelect.current = true;
+      void handlePickAccounts();
+    }
+  }, [startSelecting, state.status, linkStep.step]);
 
   return (
     <div
@@ -106,12 +127,16 @@ const TrueLayerCard = ({ state }: Props) => {
 
       {state.status === "connected" && (
         <div className="flex flex-col gap-1.5">
-          <Detail label="Account" value={state.data.account.displayName} />
-          <Detail label="Provider" value={state.data.account.provider} />
+          <Detail
+            label="Account"
+            value={state.data.account.displayName}
+            image={state.data.account.providerLogo}
+          />
+          <Detail label="Provider" value={state.data.account.providerName} />
         </div>
       )}
 
-      {state.status === "disconnected" && !accounts && (
+      {state.status === "disconnected" && linkStep.step === "idle" && (
         <div className="flex flex-col gap-3">
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
             Link a credit card via TrueLayer to sync transactions into Monzo.
@@ -127,47 +152,39 @@ const TrueLayerCard = ({ state }: Props) => {
         </div>
       )}
 
-      {state.status === "disconnected" && accounts && !saving && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label
-              className="text-xs"
-              style={{ color: "rgba(255,255,255,0.5)" }}
-            >
-              Account
-            </label>
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="rounded-lg border px-3 py-2 text-sm text-white outline-none"
-              style={{
-                backgroundColor: "#091723",
-                borderColor: "rgba(255,255,255,0.12)",
-              }}
-            >
-              <option value="">Select account…</option>
-              {accounts.map((a) => (
-                <option key={a.account_id} value={a.account_id}>
-                  {a.display_name}
-                </option>
-              ))}
-            </select>
+      {state.status === "disconnected" &&
+        linkStep.step === "loadingAccounts" && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Loading accounts...
+            </p>
+            <SkeletonGrid label="" count={2} />
           </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          <button
-            onClick={handleSave}
-            disabled={!selected}
-            className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40"
-            style={{ backgroundColor: "#1a6ef5" }}
-          >
-            Save
-          </button>
-        </div>
-      )}
+        )}
 
-      {saving && (
+      {state.status === "disconnected" &&
+        linkStep.step === "pickingAccount" && (
+          <div className="flex flex-col gap-4">
+            <AccountPicker
+              accounts={linkStep.accounts}
+              selectedAccount={selectedAccount}
+              onSelect={setSelectedAccount}
+            />
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <button
+              onClick={handleSave}
+              disabled={!selectedAccount}
+              className="w-fit rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              style={{ backgroundColor: "#1a6ef5" }}
+            >
+              Save
+            </button>
+          </div>
+        )}
+
+      {linkStep.step === "saving" && (
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-          Saving…
+          Saving...
         </p>
       )}
 
@@ -177,17 +194,5 @@ const TrueLayerCard = ({ state }: Props) => {
     </div>
   );
 };
-
-const Detail = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex items-center gap-2">
-    <span
-      className="w-16 shrink-0 text-xs"
-      style={{ color: "rgba(255,255,255,0.4)" }}
-    >
-      {label}
-    </span>
-    <span className="text-xs font-medium text-white">{value}</span>
-  </div>
-);
 
 export default TrueLayerCard;

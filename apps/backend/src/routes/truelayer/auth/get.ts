@@ -24,7 +24,7 @@ const TrueLayerAuthController = createController(
       ["accounts", "transactions", "offline_access"],
     );
 
-    return Response.json({url: trueLayerAuthUrl});
+    return Response.json({ url: trueLayerAuthUrl });
   },
   {
     requiresAuthentication: true,

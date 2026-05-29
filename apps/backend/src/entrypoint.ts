@@ -17,7 +17,7 @@ const server = serve({
     hmr: true,
     console: true,
   },
-  idleTimeout: 120
+  idleTimeout: 120,
 });
 
 console.info(`🚀 Server running at http://${server.hostname}:${server.port}`);

@@ -25,7 +25,14 @@ const TrueLayerAccountsController = createController(
     try {
       const accounts = await trueLayerClient.getAccounts();
 
-      return Response.json(accounts);
+      const ret = accounts.map((account) => ({
+        id: account.account_id,
+        displayName: account.display_name,
+        providerName: account.provider.display_name,
+        providerLogo: account.provider.logo_uri,
+      }));
+
+      return Response.json(ret);
     } catch (err) {
       if (err instanceof ApiError) {
         return Response.json(

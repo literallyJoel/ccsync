@@ -1,5 +1,5 @@
 import { MonzoPot } from "apps/web/src/types/monzo";
-import SelectionButton from "./SelectionButton";
+import SelectionButton from "../shared/SelectionButton";
 
 interface PotPickerProps {
   pots: MonzoPot[];

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import type {
-  MonzoConnectedResponse,
-  TrueLayerConnectedResponse,
-} from "../types/truelayer";
+import type { MonzoConnectedResponse } from "../types/monzo";
+import type { TrueLayerConnectedResponse } from "../types/truelayer";
 
 type ConnectionState<T> =
   | { status: "loading" }

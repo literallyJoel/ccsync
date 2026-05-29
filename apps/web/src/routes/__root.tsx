@@ -12,10 +12,10 @@ function RootComponent() {
 
   if (!isLoaded) {
     return (
-        <main className="bg-gray-900">
-            <FullPageSpinner />;
-        </main>
-    )
+      <main className="bg-gray-900">
+        <FullPageSpinner />;
+      </main>
+    );
   }
 
   if (!isSignedIn) {

@@ -1,15 +1,21 @@
-
 export type TrueLayerConnectedResponse = {
   account: {
     id: string;
-    provider: string;
+    providerName: string;
+    providerLogo?: string;
     displayName: string;
   };
 };
 
-
 export type TrueLayerAccount = {
-  account_id: string;
-  display_name: string;
-  provider: string;
+  id: string;
+  displayName: string;
+  providerName: string;
+  providerLogo?: string;
 };
+
+export type TrueLayerLinkStep =
+  | { step: "idle" }
+  | { step: "loadingAccounts" }
+  | { step: "pickingAccount"; accounts: TrueLayerAccount[] }
+  | { step: "saving"; accountId: string };

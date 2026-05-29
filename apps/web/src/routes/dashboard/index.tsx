@@ -3,9 +3,9 @@ import { z } from "zod";
 import MonzoCard from "../../components/dashboard/MonzoCard";
 import TrueLayerCard from "../../components/dashboard/TrueLayerCard";
 import { useConnectedAccounts } from "../../hooks/useConnectedAccounts";
-
 const searchSchema = z.object({
   monzoSetup: z.literal("select").optional(),
+  trueLayerSetup: z.literal("select").optional(),
 });
 
 export const Route = createFileRoute("/dashboard/")({
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 function Dashboard() {
-  const { monzoSetup } = Route.useSearch();
+  const { monzoSetup, trueLayerSetup } = Route.useSearch();
   const { monzo, trueLayer, lastSync } = useConnectedAccounts();
 
   const bothConnected =
@@ -130,7 +130,10 @@ function Dashboard() {
 
         {/* Account cards */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <TrueLayerCard state={trueLayer} />
+          <TrueLayerCard
+            state={trueLayer}
+            startSelecting={trueLayerSetup === "select"}
+          />
           <MonzoCard state={monzo} startSelecting={monzoSetup === "select"} />
         </div>
       </div>

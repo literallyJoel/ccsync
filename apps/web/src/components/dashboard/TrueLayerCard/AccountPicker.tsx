@@ -1,19 +1,15 @@
-import { LinkStep, MonzoAccount } from "apps/web/src/types/monzo";
+import type { TrueLayerAccount } from "../../../types/truelayer";
 import SelectionButton from "../shared/SelectionButton";
-import SkeletonGrid from "../shared/SkeletonGrid";
 
 interface AccountPickerProps {
-  accounts: MonzoAccount[];
+  accounts: TrueLayerAccount[];
   selectedAccount: string;
-  isLoadingPots: boolean;
-  linkStep: LinkStep;
   onSelect: (accountId: string) => void;
 }
 
 const AccountPicker = ({
   accounts,
   selectedAccount,
-  isLoadingPots,
   onSelect,
 }: AccountPickerProps) => (
   <div className="flex flex-col gap-2">
@@ -30,33 +26,33 @@ const AccountPicker = ({
           <SelectionButton
             key={account.id}
             isSelected={isSelected}
-            disabled={isLoadingPots}
+            accentColor="#1a6ef5"
+            selectedBackgroundColor="rgba(26,110,245,0.12)"
+            selectedBorderColor="rgba(26,110,245,0.5)"
             onClick={() => onSelect(account.id)}
           >
-            <img
-              src={account.assets.image_url}
-              width={28}
-              height={28}
-              className="rounded-full border border-white/10 shrink-0"
-              alt=""
-            />
+            {account.providerLogo && (
+              <img
+                src={account.providerLogo}
+                width={28}
+                height={28}
+                className="rounded-full border border-white/10 bg-white shrink-0"
+                alt=""
+              />
+            )}
             <span className="text-xs font-semibold text-white leading-tight">
-              {account.owner_type}
-              {account.is_flex && (
-                <span
-                  className="block font-normal"
-                  style={{ color: "rgba(255,255,255,0.45)" }}
-                >
-                  Flex
-                </span>
-              )}
+              {account.displayName}
+              <span
+                className="block font-normal"
+                style={{ color: "rgba(255,255,255,0.45)" }}
+              >
+                {account.providerName}
+              </span>
             </span>
           </SelectionButton>
         );
       })}
     </div>
-
-    {isLoadingPots && <SkeletonGrid label="Pot" count={4} />}
   </div>
 );
 

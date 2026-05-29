@@ -26,11 +26,12 @@ const GetConnectedTrueLayerController = createController(
 
     const returnAccount = {
       id: account.account_id,
-      provider: account.provider,
+      providerName: account.provider.display_name,
+      providerLogo: account.provider.logo_uri,
       displayName: account.display_name,
     };
 
-    return Response.json({ account: returnAccount }, { status: 404 });
+    return Response.json({ account: returnAccount });
   },
   {
     requiresAuthentication: true,
